@@ -21,6 +21,7 @@ npm-debug.log*
 /dist
 /.next
 /out
+*.tsbuildinfo
 
 # IDEs and editors
 /.idea
