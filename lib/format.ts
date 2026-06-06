@@ -46,3 +46,11 @@ export function fmtMonth(ym: string): string {
   const month = MONTHS[Number(m[2]) - 1] ?? "";
   return `${month} '${m[1].slice(2)}`;
 }
+
+/** 'YYYY-MM-DD HH:MM:SS' -> "Jan 2024" (month + full year), for the header line. */
+export function fmtMonthYear(ts: string): string {
+  const m = ts.match(/^(\d{4})-(\d{2})/);
+  if (!m) return ts;
+  const month = MONTHS[Number(m[2]) - 1] ?? "";
+  return `${month} ${m[1]}`;
+}

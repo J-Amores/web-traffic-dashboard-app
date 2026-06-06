@@ -2,6 +2,48 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Live-ops console theme — ported from the Vercel-style template.
+ * The console page is ALWAYS dark, so the template's
+ * `@media (prefers-color-scheme: dark)` token values are applied
+ * unconditionally here (no system dependence).
+ */
+:root {
+  --ds-background-100: #000000;
+  --ds-background-200: #171717;
+  --ds-gray-100: #262626;
+  --ds-gray-200: #333333;
+  --ds-gray-300: #404040;
+  --ds-gray-400: #525252;
+  --ds-gray-500: #737373;
+  --ds-gray-600: #a3a3a3;
+  --ds-gray-700: #d4d4d4;
+  --ds-gray-800: #e5e5e5;
+  --ds-gray-900: #a1a1aa;
+  --ds-gray-1000: #fafafa;
+  --ds-gray-alpha-100: rgba(255, 255, 255, 0.05);
+  --ds-gray-alpha-200: rgba(255, 255, 255, 0.1);
+  --ds-gray-alpha-400: rgba(255, 255, 255, 0.2);
+  --ds-gray-alpha-600: rgba(255, 255, 255, 0.4);
+
+  --ds-blue-500: #3b82f6;
+  --ds-blue-600: #2563eb;
+  --ds-blue-700: #1d4ed8;
+  --ds-blue-800: #1e40af;
+  --ds-blue-900: #0066ff;
+
+  --ds-red-600: #dc2626;
+  --ds-red-700: #b91c1c;
+  --ds-red-800: #991b1b;
+  --ds-red-900: #dc143c;
+
+  --ds-green-600: #16a34a;
+  --ds-green-700: #15803d;
+
+  --ds-amber-800: #f59e0b;
+  --ds-orange-600: #ea580c;
+}
+
 @layer base {
   html,
   body {
@@ -15,6 +57,26 @@
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum";
   }
+}
+
+/* Template helper classes — plain CSS so they work on Tailwind v3. */
+.bg-gray-alpha-100 {
+  background-color: var(--ds-gray-alpha-100);
+}
+.text-gray-900 {
+  color: var(--ds-gray-900);
+}
+.text-gray-1000 {
+  color: var(--ds-gray-1000);
+}
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* react-simple-maps: full-bleed, no transitions needed for the dotted map. */
+.rsm-svg {
+  width: 100%;
+  height: auto;
 }
 
 @layer utilities {

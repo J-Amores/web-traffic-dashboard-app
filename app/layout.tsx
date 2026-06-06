@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import { GeistMono } from "geist/font/mono";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Web Traffic Dashboard",
-  description: "Social-media engagement analytics, framed as web traffic.",
+  title: "Web Traffic Analytics — Live Console",
+  description: "Full-dataset web-traffic analytics, rendered as a live ops console.",
 };
 
 export default function RootLayout({
@@ -12,8 +13,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className="min-h-screen bg-canvas text-ink">{children}</body>
+    <html lang="en" className={GeistMono.variable}>
+      <body className="min-h-screen bg-black font-mono text-[var(--ds-gray-1000)] antialiased">
+        {children}
+      </body>
     </html>
   );
 }
