@@ -6,6 +6,7 @@
 // ?period=all so the console shows full-dataset totals.
 
 import { useEffect, useState } from "react";
+import { AnimatePresence } from "framer-motion";
 import { fetchJson } from "@/lib/client";
 import { fmtMonthYear } from "@/lib/format";
 import type {
@@ -18,6 +19,7 @@ import type {
   HealthResponse,
 } from "@/lib/types";
 import MapContainer from "@/components/console/MapContainer";
+import CountryPanel from "@/components/console/CountryPanel";
 import {
   TotalSessions,
   TopCountries,
@@ -40,6 +42,12 @@ interface ConsoleData {
 export default function ConsolePage() {
   const [data, setData] = useState<ConsoleData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Country selected by hovering/tapping the "Top countries" list: drives the
+  // side mini-dashboard panel and the map glow.
+  const [selected, setSelected] = useState<{
+    country: string;
+    count: number;
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -100,13 +108,28 @@ export default function ConsolePage() {
           <section className="w-full pb-6">
             <div className="flex flex-col gap-y-6">
               <TotalSessions value={kpis.sessions.current} />
-              <TopCountries geo={geo} />
+              <TopCountries
+                geo={geo}
+                selected={selected?.country ?? null}
+                onSelect={setSelected}
+              />
             </div>
             <CountryCount count={countryCount} />
+            <AnimatePresence>
+              {selected && (
+                <div className="mt-6">
+                  <CountryPanel
+                    key={selected.country}
+                    country={selected.country}
+                    count={selected.count}
+                  />
+                </div>
+              )}
+            </AnimatePresence>
           </section>
 
           <div className="flex w-full justify-center">
-            <MapContainer geo={geo} />
+            <MapContainer geo={geo} selectedCountry={selected?.country ?? null} />
           </div>
         </div>
 
@@ -120,16 +143,33 @@ export default function ConsolePage() {
           </header>
 
           <section className="relative z-10 w-fit pb-6 lg:absolute lg:bottom-0">
-            <div className="flex flex-col gap-y-8">
-              <TotalSessions value={kpis.sessions.current} />
-              <TopCountries geo={geo} />
+            <div className="flex items-end gap-8">
+              <div>
+                <div className="flex flex-col gap-y-8">
+                  <TotalSessions value={kpis.sessions.current} />
+                  <TopCountries
+                    geo={geo}
+                    selected={selected?.country ?? null}
+                    onSelect={setSelected}
+                  />
+                </div>
+                <CountryCount count={countryCount} />
+              </div>
+              <AnimatePresence>
+                {selected && (
+                  <CountryPanel
+                    key={selected.country}
+                    country={selected.country}
+                    count={selected.count}
+                  />
+                )}
+              </AnimatePresence>
             </div>
-            <CountryCount count={countryCount} />
           </section>
 
           <div className="pointer-events-none h-full w-full">
             <div className="pointer-events-auto">
-              <MapContainer geo={geo} />
+              <MapContainer geo={geo} selectedCountry={selected?.country ?? null} />
             </div>
           </div>
         </div>

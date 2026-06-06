@@ -10,6 +10,12 @@ const DottedMap = dynamic(() => import("./DottedMap"), {
   ),
 });
 
-export default function MapContainer({ geo }: { geo: GeoItem[] }) {
-  return <DottedMap geo={geo} />;
+export default function MapContainer({
+  geo,
+  selectedCountry,
+}: {
+  geo: GeoItem[];
+  selectedCountry?: string | null;
+}) {
+  return <DottedMap geo={geo} selectedCountry={selectedCountry} />;
 }

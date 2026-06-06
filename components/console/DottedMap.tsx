@@ -4,13 +4,12 @@
 // to OUR data: dot color + density + pulse are driven by per-country session
 // counts from /api/geo. Vercel edge-POP markers were dropped entirely.
 
-import { useMemo, memo, useRef, useState } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { useMemo, memo } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { geoMercator } from "d3-geo";
 import dottedMapData from "@/lib/data/dotted-map-data.json";
 import { iso2For, colorForIso2 } from "@/lib/country-meta";
 import type { GeoItem } from "@/lib/types";
-import CountryPanel from "./CountryPanel";
 
 type DotCity = { lon: number; lat: number; cityDistanceRank: number };
 const MAP_DATA = dottedMapData as Record<string, DotCity[]>;
@@ -101,9 +100,9 @@ const AnimatedPixel = memo(
 AnimatedPixel.displayName = "AnimatedPixel";
 
 /**
- * Marks the selected country on the map while its panel is open: a center dot
- * plus a pulsing ring in the country's color, so it's obvious WHICH country the
- * popped-up metrics belong to. Pointer-events-none so it never blocks hover.
+ * Glows the selected country on the map: a soft color halo, a pulsing ring, and
+ * a bright center dot in the country's color — so the country the side panel is
+ * describing is obvious at a glance. Pointer-events-none; purely decorative.
  */
 function SelectionRing({
   x,
@@ -118,18 +117,20 @@ function SelectionRing({
   const iso = iso2For(country);
   const color = iso ? colorForIso2(iso) : "var(--ds-gray-100)";
   return (
-    <g pointerEvents="none">
+    <g pointerEvents="none" data-testid="country-glow">
+      {/* soft halo glow */}
+      <circle cx={x} cy={y} r={20} fill={color} opacity={0.12} />
       <motion.circle
         cx={x}
         cy={y}
         fill="none"
         stroke={color}
         strokeWidth={1.5}
-        initial={reduce ? { r: 9, opacity: 0.85 } : { r: 5, opacity: 0 }}
+        initial={reduce ? { r: 14, opacity: 0.85 } : { r: 8, opacity: 0 }}
         animate={
           reduce
-            ? { r: 9, opacity: 0.85 }
-            : { r: [6, 13, 6], opacity: [0.9, 0.2, 0.9] }
+            ? { r: 14, opacity: 0.85 }
+            : { r: [10, 18, 10], opacity: [0.9, 0.25, 0.9] }
         }
         transition={
           reduce
@@ -137,47 +138,25 @@ function SelectionRing({
             : { duration: 1.6, repeat: Infinity, ease: "easeInOut" }
         }
       />
-      <circle cx={x} cy={y} r={2.6} fill={color} />
+      <circle cx={x} cy={y} r={3} fill={color} />
     </g>
   );
-}
-
-interface Hovered {
-  x: number;
-  y: number;
-  country: string;
-  count: number;
 }
 
 interface DottedMapProps {
   geo: GeoItem[];
   width?: number;
   height?: number;
+  /** Country (raw name from /api/geo) to glow; selection comes from the list. */
+  selectedCountry?: string | null;
 }
 
 export default function DottedMap({
   geo,
   width = 1000,
   height = 560,
+  selectedCountry = null,
 }: DottedMapProps) {
-  const [hovered, setHovered] = useState<Hovered | null>(null);
-  // Small grace delay on leave so brief pointer gaps between a hotspot and its
-  // neighbours don't tear down and re-open the panel (avoids flicker).
-  const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const openPanel = (h: Hovered) => {
-    if (leaveTimer.current) {
-      clearTimeout(leaveTimer.current);
-      leaveTimer.current = null;
-    }
-    setHovered(h);
-  };
-
-  const scheduleClose = () => {
-    if (leaveTimer.current) clearTimeout(leaveTimer.current);
-    leaveTimer.current = setTimeout(() => setHovered(null), 120);
-  };
-
   const projection = useMemo(
     () =>
       geoMercator()
@@ -257,22 +236,23 @@ export default function DottedMap({
     return { staticPixels: staticArr, animatedPixels: animatedArr };
   }, [projection, width, height, countByIso2, maxCount, pulseSet]);
 
-  // Hover hotspots: one invisible target per country (at its capital-ish dot).
-  const hotspots = useMemo(() => {
-    const out: Array<{ x: number; y: number; country: string; count: number }> =
-      [];
+  // Per-country centroid (capital-ish first dot) — used to glow the selected
+  // country. Keyed by the raw /api/geo country name the list selects with.
+  const centroids = useMemo(() => {
+    const map = new Map<string, { x: number; y: number }>();
     for (const g of geo) {
       const iso = iso2For(g.country);
       if (!iso) continue;
-      const cities = MAP_DATA[iso];
-      const anchor = cities?.[0];
+      const anchor = MAP_DATA[iso]?.[0];
       if (!anchor) continue;
       const coords = projection([anchor.lon, anchor.lat]);
       if (!coords) continue;
-      out.push({ x: coords[0], y: coords[1], country: g.country, count: g.count });
+      map.set(g.country, { x: coords[0], y: coords[1] });
     }
-    return out;
+    return map;
   }, [geo, projection]);
+
+  const sel = selectedCountry ? centroids.get(selectedCountry) : undefined;
 
   return (
     <div className="relative w-full">
@@ -297,46 +277,11 @@ export default function DottedMap({
             />
           ))}
         </g>
-        {/* Invisible hover targets that open the per-country mini-dashboard. */}
-        <g>
-          {hotspots.map((h) => (
-            <rect
-              key={h.country}
-              x={h.x - 9}
-              y={h.y - 9}
-              width={18}
-              height={18}
-              fill="transparent"
-              style={{ cursor: "pointer" }}
-              onMouseEnter={() =>
-                openPanel({
-                  x: h.x,
-                  y: h.y,
-                  country: h.country,
-                  count: h.count,
-                })
-              }
-              onMouseLeave={scheduleClose}
-            />
-          ))}
-        </g>
-        {/* Highlight the active country on the map while its panel is open. */}
-        {hovered && (
-          <SelectionRing x={hovered.x} y={hovered.y} country={hovered.country} />
+        {/* Glow the country currently selected in the side list. */}
+        {sel && selectedCountry && (
+          <SelectionRing x={sel.x} y={sel.y} country={selectedCountry} />
         )}
       </svg>
-
-      <AnimatePresence>
-        {hovered && (
-          <CountryPanel
-            key={hovered.country}
-            country={hovered.country}
-            count={hovered.count}
-            leftPct={(hovered.x / width) * 100}
-            topPct={(hovered.y / height) * 100}
-          />
-        )}
-      </AnimatePresence>
     </div>
   );
 }

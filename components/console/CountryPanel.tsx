@@ -372,50 +372,23 @@ function PanelContent({
 export interface CountryPanelProps {
   country: string;
   count: number;
-  /** Anchor position in 0..1 fractions of the map box (left/top). */
-  leftPct: number;
-  topPct: number;
 }
 
 /**
- * Floating panel rendered over the map. Pointer-events-none so it never traps
- * the hover and creates flicker. Anchored to the hovered hotspot and clamped
- * so it stays inside the map box: it flips to the LEFT once the anchor passes
- * ~45% (the panel is wide), and flips BELOW the anchor in the top third
- * (otherwise the upward translate would clip against the map's top edge).
+ * The mini-dashboard card. Rendered in a fixed spot beside the "Top Countries"
+ * list (selection is driven by hovering that list, not the map), so it no
+ * longer needs to anchor/flip against a map hotspot. Fades + scales in on
+ * mount and out on unmount (via the parent's <AnimatePresence>); honors
+ * prefers-reduced-motion.
  */
-export default function CountryPanel({
-  country,
-  count,
-  leftPct,
-  topPct,
-}: CountryPanelProps) {
+export default function CountryPanel({ country, count }: CountryPanelProps) {
   const reduce = useReducedMotion();
-  const flipX = leftPct > 45; // keep the wide panel on-screen near right edge
-  const flipY = topPct > 55; // open upward when too close to the bottom
-  const tx = flipX ? "-100%" : "0%";
-  const ty = flipY ? "-100%" : "0%";
-
-  // NOTE: framer-motion owns the `transform` of a motion element, so the
-  // flip translate cannot live in inline `style` (it gets clobbered). We keep
-  // the anchor in `left`/`top` and express BOTH the flip translate and the
-  // entrance offset through framer's own `x`/`y` so they compose correctly.
   return (
     <motion.div
-      key={country}
-      className="pointer-events-none absolute z-20 rounded-lg border border-[var(--ds-gray-400)] bg-[var(--ds-background-200)] p-4 shadow-2xl ring-1 ring-black/40"
-      style={{ left: `${leftPct}%`, top: `${topPct}%` }}
-      initial={
-        reduce
-          ? { x: tx, y: ty, opacity: 1 }
-          : { x: tx, y: flipY ? `calc(${ty} + 6px)` : `calc(${ty} - 6px)`, opacity: 0, scale: 0.97 }
-      }
-      animate={{
-        x: tx,
-        y: flipY ? `calc(${ty} - 12px)` : `calc(${ty} + 12px)`,
-        opacity: 1,
-        scale: 1,
-      }}
+      className="rounded-lg border border-[var(--ds-gray-400)] bg-[var(--ds-background-200)] p-4 shadow-2xl ring-1 ring-black/40"
+      initial={reduce ? { opacity: 1 } : { opacity: 0, scale: 0.97, y: 6 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={reduce ? { opacity: 0 } : { opacity: 0, scale: 0.98, y: 4 }}
       transition={{ duration: reduce ? 0 : 0.18, ease: "easeOut" }}
     >
       <PanelBody country={country} count={count} />

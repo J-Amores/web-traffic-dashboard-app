@@ -381,39 +381,81 @@ export function TotalSessions({ value }: { value: number }) {
   );
 }
 
-export function TopCountries({ geo }: { geo: GeoItem[] }) {
+export function TopCountries({
+  geo,
+  selected,
+  onSelect,
+}: {
+  geo: GeoItem[];
+  /** Raw country name currently selected (highlights that row). */
+  selected?: string | null;
+  /** Fired on hover/focus/tap of a row; null when the pointer leaves. */
+  onSelect?: (sel: { country: string; count: number } | null) => void;
+}) {
   const ranked = useMemo(
     () => [...geo].sort((a, b) => b.count - a.count).slice(0, 7),
     [geo]
   );
+  // Grace delay on leave so moving between adjacent rows doesn't flicker the
+  // panel; clearing to null only fires if no new row is entered in time.
+  const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const pick = (sel: { country: string; count: number }) => {
+    if (leaveTimer.current) {
+      clearTimeout(leaveTimer.current);
+      leaveTimer.current = null;
+    }
+    onSelect?.(sel);
+  };
+  const scheduleClear = () => {
+    if (leaveTimer.current) clearTimeout(leaveTimer.current);
+    leaveTimer.current = setTimeout(() => onSelect?.(null), 140);
+  };
 
   return (
     <div className="space-y-2">
       <h2 className="text-gray-900 my-0 font-mono text-sm font-medium uppercase tracking-tight">
         Top countries by sessions
       </h2>
-      <ul className="list-none space-y-1 pl-0">
+      <ul className="list-none space-y-0.5 pl-0">
         {ranked.map((c) => {
           const iso = iso2For(c.country) ?? "??";
           const color = colorForIso2(iso);
+          const active = selected === c.country;
           return (
-            <li key={c.country} className="flex w-full items-center md:w-fit">
-              <span aria-hidden="true" className="inline-block translate-x-[2px] translate-y-[-2px]">
-                <span style={{ color }}>■</span>
-              </span>
-              <div className="text-left">
-                <h3
-                  className="my-0 inline-block text-[16px] font-medium"
+            <li key={c.country}>
+              <button
+                type="button"
+                aria-pressed={active}
+                onMouseEnter={() => pick({ country: c.country, count: c.count })}
+                onFocus={() => pick({ country: c.country, count: c.count })}
+                onClick={() => pick({ country: c.country, count: c.count })}
+                onMouseLeave={scheduleClear}
+                onBlur={scheduleClear}
+                className={`flex w-full items-center rounded-sm px-1 py-0.5 text-left font-mono transition-colors md:w-[20ch] ${
+                  active
+                    ? "bg-[var(--ds-gray-100)]"
+                    : "hover:bg-[var(--ds-gray-100)]"
+                }`}
+              >
+                <span
+                  aria-hidden="true"
+                  className="inline-block translate-x-[2px] translate-y-[-2px]"
+                >
+                  <span style={{ color }}>■</span>
+                </span>
+                <span
+                  className="inline-block text-[16px] font-medium"
                   style={{ color }}
                 >
                   &nbsp;{iso}
-                </h3>
-              </div>
-              <div className="ml-auto w-[14ch] text-right md:ml-6">
-                <span className="inline-flex tabular-nums">
-                  <CountInt value={c.count} />
                 </span>
-              </div>
+                <span className="ml-auto w-[14ch] text-right md:ml-6">
+                  <span className="inline-flex tabular-nums">
+                    <CountInt value={c.count} />
+                  </span>
+                </span>
+              </button>
             </li>
           );
         })}

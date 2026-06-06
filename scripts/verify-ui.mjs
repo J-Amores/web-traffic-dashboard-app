@@ -1,6 +1,6 @@
 // One-off visual/interaction verification (not part of the app).
 // Drives the dark live-ops console at app/page.tsx with real selectors:
-//   - dotted world map = <svg> of <rect> pixels; hotspots = transparent rects
+//   - dotted world map = <svg> of <rect> pixels; selection glow = <circle>s
 //   - big numerals scramble in via useScramble (~1.2s) -> .tabular-nums
 //   - KPI trend = MiniSpark wrapper div.cursor-crosshair (inner svg is aria-hidden)
 //   - StatCard info-flip = button[aria-label^="Learn more about"]
@@ -34,10 +34,9 @@ await page.waitForTimeout(2000);
 await page.screenshot({ path: `${OUT}/console-full.png`, fullPage: true });
 log("saved console-full.png");
 
-// Map rendered: dotted-pixel SVG (static + animated <rect>) + transparent hotspots.
+// Map rendered: dotted-pixel SVG (static + animated <rect>).
 const mapPixels = await page.locator("main svg rect").count();
-const hotspots = await page.locator('main svg rect[fill="transparent"]').count();
-log("map pixels:", mapPixels, " hotspots:", hotspots);
+log("map pixels:", mapPixels);
 
 // Hero numeral present and settled (Total sessions). Two "Total sessions"
 // headings exist (hidden mobile layout + visible wide layout); pick visible.
@@ -66,58 +65,55 @@ if (sbox) {
 await page.screenshot({ path: `${OUT}/hover-sparkline.png` });
 log("saved hover-sparkline.png  (sparklines found:", await page.locator("div.cursor-crosshair").count(), ")");
 
-// Hover a map hotspot -> country mini-dashboard PANEL.
-// The panel (`CountryPanel`) mounts in <main>, shows a "<country> N sessions"
-// header + colored bullet, a skeleton loader, then settles to real KPI numerals
-// + Devices/Channels/Top referrers/Top pages lists. Hotspots are tiny (18px)
-// transparent <rect>s; many countries' anchor dots project off-screen, so we
-// iterate until a hover lands on one whose panel actually opens.
-const hotspotLoc = page.locator('main svg rect[fill="transparent"]');
-const hotspotN = await hotspotLoc.count();
-let openedAt = -1;
-let panelCountry = "?";
-for (let i = 0; i < hotspotN; i++) {
-  try {
-    await hotspotLoc.nth(i).hover({ timeout: 800 });
-  } catch {
-    continue; // off-screen / zero-box hotspot
-  }
-  await page.waitForTimeout(120);
-  if ((await page.getByText("Top referrers", { exact: true }).count()) > 0) {
-    openedAt = i;
-    break;
-  }
-}
-log("country panel opened on hotspot index:", openedAt);
-// Let the per-country fetch resolve and the numerals settle.
-await page.waitForTimeout(1200);
-const panel = page.locator("div.z-20").filter({ hasText: "sessions" }).first();
-panelCountry = (await panel.innerText().catch(() => "?"))
-  .replace(/\s+/g, " ")
-  .trim()
-  .slice(0, 80);
-const panelLabels = await page
-  .locator("main")
-  .getByText(/^(Duration|Time \/ page|Unique PV|Devices|Channels|Top referrers|Top pages)$/)
+// Select a country from the "Top countries by sessions" list — the interaction
+// now lives on that list, not the map. Each row is a <button aria-pressed>;
+// hovering/focusing it opens the side `CountryPanel` and glows that country on
+// the map. Two lists exist (hidden mobile + visible wide layout); target the
+// visible one. The panel shows a "<country> N sessions" header, a skeleton
+// loader, then real KPI numerals + sparklines + Devices/Channels/Top
+// referrers/Top pages bar charts.
+const rows = page.locator("button[aria-pressed]").locator("visible=true");
+log("country list rows (visible):", await rows.count());
+await rows.first().hover();
+await page.waitForTimeout(120);
+await page.screenshot({ path: `${OUT}/geo-panel-loading.png` });
+
+// Panel card = the unique shadow-2xl wrapper. Wait for real data to land.
+const panel = page.locator("div.shadow-2xl").first();
+await panel
+  .getByText("Top referrers", { exact: true })
+  .waitFor({ state: "visible", timeout: 8000 })
+  .catch(() => {});
+await page.waitForTimeout(900);
+const headerText = await page
+  .locator("span", { hasText: /\d\s+sessions$/ })
+  .first()
+  .innerText()
+  .catch(() => "?");
+const panelLabels = await panel
+  .getByText(
+    /^(Duration|Time \/ page|Unique PV|Devices|Channels|Top referrers|Top pages \(bounce\))$/,
+  )
   .count();
-log("country panel header+kpis:", panelCountry);
-log("country panel section labels:", panelLabels, panelLabels >= 7 ? "(ok)" : "(LOW)");
+const glow = await page.locator('[data-testid="country-glow"]').count();
+log("panel header:", headerText.replace(/\s+/g, " ").trim());
+log("panel section labels:", panelLabels, panelLabels >= 7 ? "(ok)" : "(LOW)");
+log("map glow circles (selection ring):", glow, glow >= 1 ? "(ok)" : "(none)");
 await page.screenshot({ path: `${OUT}/geo-panel.png` });
 log("saved geo-panel.png");
 
-// Re-hover the SAME hotspot after moving away: the per-country cache should
-// replay instantly (panel content present within ~150ms, no loader re-flash).
-if (openedAt >= 0) {
-  await page.mouse.move(5, 5);
-  await page.waitForTimeout(250);
-  await hotspotLoc.nth(openedAt).hover({ timeout: 800 }).catch(() => {});
-  await page.waitForTimeout(150);
-  const reHover = await page
-    .locator("main")
-    .getByText(/^(Duration|Devices|Channels)$/)
-    .count();
-  log("re-hover (cached) labels visible quickly:", reHover, reHover >= 3 ? "(ok)" : "(slow)");
-}
+// Re-select after moving away: the per-country cache should replay instantly
+// (content present within ~150ms, no loader re-flash).
+await page.mouse.move(5, 5);
+await page.waitForTimeout(250);
+await rows.first().hover().catch(() => {});
+await page.waitForTimeout(150);
+const reHover = await page
+  .locator("div.shadow-2xl")
+  .first()
+  .getByText(/^(Duration|Devices|Channels)$/)
+  .count();
+log("re-select (cached) labels visible quickly:", reHover, reHover >= 3 ? "(ok)" : "(slow)");
 
 // Click a StatCard info button -> PixelGridTransition info-flip.
 const infoBtn = page.locator('button[aria-label^="Learn more about"]').first();
