@@ -49,13 +49,13 @@ replaced — recoverable from git history.)
 | Motion | `lib/motion.ts` | `useCountUp` + `useScramble` (digit-scramble on load; reduced-motion safe) |
 | Country meta | `lib/country-meta.ts` | country-name → ISO2 bridge + per-country dot colors for the map |
 | Map dot grid | `lib/data/dotted-map-data.json` | precomputed per-country pixel-dot coords (keyed by ISO2) |
-| Console page | `app/page.tsx` | the single dark ops-console view; client-fetches all endpoints |
+| Console page | `app/page.tsx` | the single dark ops-console view; client-fetches all endpoints; owns the selected-country state shared by the `TopCountries` list, the map glow, and `CountryPanel` |
 | App shell | `app/layout.tsx`, `app/globals.css` | dark root layout (Geist Mono, black bg) + `--ds-*` token defs |
-| Components | `components/console/*` | `DottedMap` (d3-geo pixel map; country-hotspot hover → mounts `CountryPanel` + pulsing selection ring), `MapContainer`, `StatsDisplay` (numeral cards, lists, `MiniSpark` trend, scramble), `CountryPanel` (per-country hover mini-dashboard — fetches existing routes with `?period=all&country=<C>`; module-level per-country cache + request-id stale-guard; landscape layout, KPI sparklines + proportional bar charts; loading/error/reduced-motion states) |
+| Components | `components/console/*` | `DottedMap` (d3-geo pixel map; glows the `selectedCountry` with a soft halo + pulsing ring — selection comes from the list, NOT map hover), `MapContainer` (passes `selectedCountry` through), `StatsDisplay` (numeral cards, lists, `MiniSpark` trend, scramble; `TopCountries` rows are the country-selection trigger — hover/focus/tap, 140ms leave grace), `CountryPanel` (per-country mini-dashboard shown beside the list — fetches existing routes with `?period=all&country=<C>`; module-level per-country cache + request-id stale-guard; landscape KPI sparklines + proportional bar charts; loading/error/reduced-motion states) |
 | API routes | `app/api/**/route.ts` | See API contract below |
 | Seed generator | `scripts/generate-seed.mjs` | Synthetic `web_sessions` generator → Neon (drops + recreates + indexes, batched) |
 | Smoke test | `scripts/smoke.mjs` | Endpoint + invariant checks |
-| UI verify | `scripts/verify-ui.mjs` | Playwright (CLI, installed locally) headless checks of the console + country hover panel; writes `.screenshots/` |
+| UI verify | `scripts/verify-ui.mjs` | Playwright (CLI, installed locally) headless checks of the console + list-driven country panel + map glow (`[data-testid="country-glow"]`); writes `.screenshots/` |
 
 ## API surface
 
