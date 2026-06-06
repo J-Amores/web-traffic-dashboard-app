@@ -4,13 +4,13 @@
 // to OUR data: dot color + density + pulse are driven by per-country session
 // counts from /api/geo. Vercel edge-POP markers were dropped entirely.
 
-import { useMemo, memo, useState } from "react";
-import { motion } from "framer-motion";
+import { useMemo, memo, useRef, useState } from "react";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { geoMercator } from "d3-geo";
 import dottedMapData from "@/lib/data/dotted-map-data.json";
 import { iso2For, colorForIso2 } from "@/lib/country-meta";
-import { fmtInt } from "@/lib/format";
 import type { GeoItem } from "@/lib/types";
+import CountryPanel from "./CountryPanel";
 
 type DotCity = { lon: number; lat: number; cityDistanceRank: number };
 const MAP_DATA = dottedMapData as Record<string, DotCity[]>;
@@ -100,7 +100,49 @@ const AnimatedPixel = memo(
 );
 AnimatedPixel.displayName = "AnimatedPixel";
 
-interface Tooltip {
+/**
+ * Marks the selected country on the map while its panel is open: a center dot
+ * plus a pulsing ring in the country's color, so it's obvious WHICH country the
+ * popped-up metrics belong to. Pointer-events-none so it never blocks hover.
+ */
+function SelectionRing({
+  x,
+  y,
+  country,
+}: {
+  x: number;
+  y: number;
+  country: string;
+}) {
+  const reduce = useReducedMotion();
+  const iso = iso2For(country);
+  const color = iso ? colorForIso2(iso) : "var(--ds-gray-100)";
+  return (
+    <g pointerEvents="none">
+      <motion.circle
+        cx={x}
+        cy={y}
+        fill="none"
+        stroke={color}
+        strokeWidth={1.5}
+        initial={reduce ? { r: 9, opacity: 0.85 } : { r: 5, opacity: 0 }}
+        animate={
+          reduce
+            ? { r: 9, opacity: 0.85 }
+            : { r: [6, 13, 6], opacity: [0.9, 0.2, 0.9] }
+        }
+        transition={
+          reduce
+            ? { duration: 0 }
+            : { duration: 1.6, repeat: Infinity, ease: "easeInOut" }
+        }
+      />
+      <circle cx={x} cy={y} r={2.6} fill={color} />
+    </g>
+  );
+}
+
+interface Hovered {
   x: number;
   y: number;
   country: string;
@@ -118,7 +160,23 @@ export default function DottedMap({
   width = 1000,
   height = 560,
 }: DottedMapProps) {
-  const [tooltip, setTooltip] = useState<Tooltip | null>(null);
+  const [hovered, setHovered] = useState<Hovered | null>(null);
+  // Small grace delay on leave so brief pointer gaps between a hotspot and its
+  // neighbours don't tear down and re-open the panel (avoids flicker).
+  const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const openPanel = (h: Hovered) => {
+    if (leaveTimer.current) {
+      clearTimeout(leaveTimer.current);
+      leaveTimer.current = null;
+    }
+    setHovered(h);
+  };
+
+  const scheduleClose = () => {
+    if (leaveTimer.current) clearTimeout(leaveTimer.current);
+    leaveTimer.current = setTimeout(() => setHovered(null), 120);
+  };
 
   const projection = useMemo(
     () =>
@@ -239,7 +297,7 @@ export default function DottedMap({
             />
           ))}
         </g>
-        {/* Invisible hover targets for a country tooltip. */}
+        {/* Invisible hover targets that open the per-country mini-dashboard. */}
         <g>
           {hotspots.map((h) => (
             <rect
@@ -251,35 +309,34 @@ export default function DottedMap({
               fill="transparent"
               style={{ cursor: "pointer" }}
               onMouseEnter={() =>
-                setTooltip({
+                openPanel({
                   x: h.x,
                   y: h.y,
                   country: h.country,
                   count: h.count,
                 })
               }
-              onMouseLeave={() => setTooltip(null)}
+              onMouseLeave={scheduleClose}
             />
           ))}
         </g>
+        {/* Highlight the active country on the map while its panel is open. */}
+        {hovered && (
+          <SelectionRing x={hovered.x} y={hovered.y} country={hovered.country} />
+        )}
       </svg>
 
-      {tooltip && (
-        <div
-          className="pointer-events-none absolute z-10 whitespace-nowrap rounded border border-[var(--ds-gray-200)] bg-[var(--ds-background-200)] px-2.5 py-1.5 font-mono text-xs shadow-lg"
-          style={{
-            left: `${(tooltip.x / width) * 100}%`,
-            top: `${(tooltip.y / height) * 100}%`,
-            transform: "translate(-50%, -140%)",
-          }}
-        >
-          <span className="text-[var(--ds-gray-1000)]">{tooltip.country}</span>
-          <span className="text-[var(--ds-gray-500)]"> · </span>
-          <span className="tabular-nums text-[var(--ds-gray-900)]">
-            {fmtInt(tooltip.count)} sessions
-          </span>
-        </div>
-      )}
+      <AnimatePresence>
+        {hovered && (
+          <CountryPanel
+            key={hovered.country}
+            country={hovered.country}
+            count={hovered.count}
+            leftPct={(hovered.x / width) * 100}
+            topPct={(hovered.y / height) * 100}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

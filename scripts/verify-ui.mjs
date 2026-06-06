@@ -66,17 +66,58 @@ if (sbox) {
 await page.screenshot({ path: `${OUT}/hover-sparkline.png` });
 log("saved hover-sparkline.png  (sparklines found:", await page.locator("div.cursor-crosshair").count(), ")");
 
-// Hover a map hotspot -> country tooltip ("… sessions").
-const firstHotspot = page.locator('main svg rect[fill="transparent"]').first();
-const hbox = await firstHotspot.boundingBox();
-if (hbox) {
-  await page.mouse.move(hbox.x + hbox.width / 2, hbox.y + hbox.height / 2);
-  await page.waitForTimeout(400);
+// Hover a map hotspot -> country mini-dashboard PANEL.
+// The panel (`CountryPanel`) mounts in <main>, shows a "<country> N sessions"
+// header + colored bullet, a skeleton loader, then settles to real KPI numerals
+// + Devices/Channels/Top referrers/Top pages lists. Hotspots are tiny (18px)
+// transparent <rect>s; many countries' anchor dots project off-screen, so we
+// iterate until a hover lands on one whose panel actually opens.
+const hotspotLoc = page.locator('main svg rect[fill="transparent"]');
+const hotspotN = await hotspotLoc.count();
+let openedAt = -1;
+let panelCountry = "?";
+for (let i = 0; i < hotspotN; i++) {
+  try {
+    await hotspotLoc.nth(i).hover({ timeout: 800 });
+  } catch {
+    continue; // off-screen / zero-box hotspot
+  }
+  await page.waitForTimeout(120);
+  if ((await page.getByText("Top referrers", { exact: true }).count()) > 0) {
+    openedAt = i;
+    break;
+  }
 }
-const mapTip = await page.locator("text=/sessions$/").count();
-log("map hover tooltip nodes:", mapTip);
-await page.screenshot({ path: `${OUT}/geo-map.png` });
-log("saved geo-map.png");
+log("country panel opened on hotspot index:", openedAt);
+// Let the per-country fetch resolve and the numerals settle.
+await page.waitForTimeout(1200);
+const panel = page.locator("div.z-20").filter({ hasText: "sessions" }).first();
+panelCountry = (await panel.innerText().catch(() => "?"))
+  .replace(/\s+/g, " ")
+  .trim()
+  .slice(0, 80);
+const panelLabels = await page
+  .locator("main")
+  .getByText(/^(Duration|Time \/ page|Unique PV|Devices|Channels|Top referrers|Top pages)$/)
+  .count();
+log("country panel header+kpis:", panelCountry);
+log("country panel section labels:", panelLabels, panelLabels >= 7 ? "(ok)" : "(LOW)");
+await page.screenshot({ path: `${OUT}/geo-panel.png` });
+log("saved geo-panel.png");
+
+// Re-hover the SAME hotspot after moving away: the per-country cache should
+// replay instantly (panel content present within ~150ms, no loader re-flash).
+if (openedAt >= 0) {
+  await page.mouse.move(5, 5);
+  await page.waitForTimeout(250);
+  await hotspotLoc.nth(openedAt).hover({ timeout: 800 }).catch(() => {});
+  await page.waitForTimeout(150);
+  const reHover = await page
+    .locator("main")
+    .getByText(/^(Duration|Devices|Channels)$/)
+    .count();
+  log("re-hover (cached) labels visible quickly:", reHover, reHover >= 3 ? "(ok)" : "(slow)");
+}
 
 // Click a StatCard info button -> PixelGridTransition info-flip.
 const infoBtn = page.locator('button[aria-label^="Learn more about"]').first();
