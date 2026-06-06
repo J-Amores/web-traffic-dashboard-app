@@ -1,5 +1,7 @@
 // One-off visual/interaction verification (not part of the app).
-// Drives the dark live-ops console at app/page.tsx with real selectors:
+// First asserts the landing page at "/" (hero + live stats + CTA -> /dashboard),
+// then drives the dark live-ops console at "/dashboard" (app/dashboard/page.tsx)
+// with real selectors:
 //   - dotted world map = <svg> of <rect> pixels; selection glow = <circle>s
 //   - big numerals scramble in via useScramble (~1.2s) -> .tabular-nums
 //   - KPI trend = MiniSpark wrapper div.cursor-crosshair (inner svg is aria-hidden)
@@ -22,7 +24,30 @@ page.on("console", (m) => {
 });
 page.on("pageerror", (e) => errors.push("PAGEERROR: " + e.message));
 
+// --- Landing page at / (hero backdrop + headline + live stats + CTA) ---
 await page.goto(BASE + "/", { waitUntil: "networkidle" });
+await page
+  .locator("h1", { hasText: "Web traffic, in real time" })
+  .first()
+  .waitFor({ state: "visible", timeout: 15000 });
+await page.waitForTimeout(2000);
+const landingHeadline = await page.locator("h1").first().innerText().catch(() => "?");
+const landingTotal = await page
+  .locator("h2", { hasText: "Total sessions" })
+  .first()
+  .locator("xpath=following-sibling::div[1]")
+  .innerText()
+  .catch(() => "?");
+const landingMapPixels = await page.locator("main svg rect").count();
+const cta = page.locator('a[href="/dashboard"]', { hasText: /Enter the console/i });
+log("landing headline:", landingHeadline.replace(/\s+/g, " ").trim());
+log("landing total sessions:", landingTotal, "| map pixels:", landingMapPixels);
+log("landing CTA -> /dashboard:", (await cta.count()) ? "present" : "MISSING");
+await page.screenshot({ path: `${OUT}/landing-full.png`, fullPage: true });
+log("saved landing-full.png");
+
+// --- Console at /dashboard (full existing assertions below) ---
+await page.goto(BASE + "/dashboard", { waitUntil: "networkidle" });
 // Wait for the console to finish loading (the "Loading console…" splash is gone)
 // and let the scramble-in + map entrance animations settle.
 await page.waitForFunction(() => !document.body.innerText.includes("Loading console"), {

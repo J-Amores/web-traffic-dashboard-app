@@ -3,10 +3,12 @@
 Web-traffic analytics dashboard. Next.js (App Router) + TypeScript + Tailwind;
 data via Neon Postgres (`@neondatabase/serverless` HTTP driver), table
 `web_sessions` (~79k synthetic session rows, 16 months). **UI = a single dark,
-monospace "live-ops console"** at `app/page.tsx` (Vercel-style), client-fetching
-the live API with `?period=all`. Pixel dotted world map + scramble-in numerals +
-animated trend sparklines. (The earlier 3-view light Tableau dashboard was
-replaced — recoverable from git history.)
+monospace "live-ops console"** at `/dashboard` → `app/dashboard/page.tsx` (Vercel-style),
+client-fetching the live API with `?period=all`. Pixel dotted world map +
+scramble-in numerals + animated trend sparklines. A cinematic **landing page**
+fronts it at `/` (`app/page.tsx`) — same dark idiom, dotted-map hero, live
+scramble stats, CTA → `/dashboard`. (The earlier 3-view light Tableau dashboard
+was replaced — recoverable from git history.)
 
 ## Stack & conventions
 
@@ -49,13 +51,14 @@ replaced — recoverable from git history.)
 | Motion | `lib/motion.ts` | `useCountUp` + `useScramble` (digit-scramble on load; reduced-motion safe) |
 | Country meta | `lib/country-meta.ts` | country-name → ISO2 bridge + per-country dot colors for the map |
 | Map dot grid | `lib/data/dotted-map-data.json` | precomputed per-country pixel-dot coords (keyed by ISO2) |
-| Console page | `app/page.tsx` | the single dark ops-console view; client-fetches all endpoints; owns the selected-country state shared by the `TopCountries` list, the map glow, and `CountryPanel` |
+| Landing page | `app/page.tsx` | cinematic front door at `/`; reuses `MapContainer` as a dotted-map hero backdrop (gradient scrim, fade/settle-in), `useScramble` live stats (Total Sessions = `kpis.sessions.current`, Country count = `geo.length`) from real `/api/{health,kpis,geo}?period=all`, framer staggered rise-in (reduced-motion safe), CTA `<Link href="/dashboard">`; console-idiom loading + error states |
+| Console page | `app/dashboard/page.tsx` | the single dark ops-console view at `/dashboard`; client-fetches all endpoints; owns the selected-country state shared by the `TopCountries` list, the map glow, and `CountryPanel` |
 | App shell | `app/layout.tsx`, `app/globals.css` | dark root layout (Geist Mono, black bg) + `--ds-*` token defs |
 | Components | `components/console/*` | `DottedMap` (d3-geo pixel map; glows the `selectedCountry` with a soft halo + pulsing ring — selection comes from the list, NOT map hover), `MapContainer` (passes `selectedCountry` through), `StatsDisplay` (numeral cards, lists, `MiniSpark` trend, scramble; `TopCountries` rows are the country-selection trigger — hover/focus/tap, 140ms leave grace), `CountryPanel` (per-country mini-dashboard shown beside the list — fetches existing routes with `?period=all&country=<C>`; module-level per-country cache + request-id stale-guard; landscape KPI sparklines + proportional bar charts; loading/error/reduced-motion states) |
 | API routes | `app/api/**/route.ts` | See API contract below |
 | Seed generator | `scripts/generate-seed.mjs` | Synthetic `web_sessions` generator → Neon (drops + recreates + indexes, batched) |
 | Smoke test | `scripts/smoke.mjs` | Endpoint + invariant checks |
-| UI verify | `scripts/verify-ui.mjs` | Playwright (CLI, installed locally) headless checks of the console + list-driven country panel + map glow (`[data-testid="country-glow"]`); writes `.screenshots/` |
+| UI verify | `scripts/verify-ui.mjs` | Playwright (CLI, installed locally) headless checks: landing `/` (headline + live total + map pixels + CTA→`/dashboard`) THEN full console regression at `/dashboard` (country panel + map glow `[data-testid="country-glow"]`); writes `.screenshots/` |
 
 ## API surface
 

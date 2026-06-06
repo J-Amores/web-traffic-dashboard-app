@@ -1,53 +1,35 @@
 "use client";
 
-// Live-ops web-traffic console — a single dark, monospace scrolling page.
-// Hero: dotted pixel world map + overlaid stats column. Below: dark card grid.
-// Every number is fetched client-side from our real /api/* endpoints with
-// ?period=all so the console shows full-dataset totals.
+// Landing page — a cinematic front door for the web-traffic console.
+// The dotted world map renders as a backdrop layer behind a gradient scrim;
+// overlaid copy + live scramble-in stats (Total Sessions, Countries) sell the
+// product, and a CTA sends visitors into the real console at /dashboard. Every
+// number is fetched client-side from the real /api/* endpoints with ?period=all
+// — no fake data. Visual treatment (scrim, layout, staggered entrance) is the
+// frontend refinement; the map (MapContainer/DottedMap) and the scramble
+// (TotalSessions/CountryCount via useScramble) are REUSED, not re-implemented.
 
 import { useEffect, useState } from "react";
-import { AnimatePresence } from "framer-motion";
+import Link from "next/link";
+import { motion, useReducedMotion } from "framer-motion";
 import { fetchJson } from "@/lib/client";
 import { fmtMonthYear } from "@/lib/format";
-import type {
-  KpisResponse,
-  GeoItem,
-  DeviceBreakdownItem,
-  ChannelBreakdownItem,
-  ReferrerBreakdownItem,
-  PageBreakdownItem,
-  HealthResponse,
-} from "@/lib/types";
+import type { KpisResponse, GeoItem, HealthResponse } from "@/lib/types";
 import MapContainer from "@/components/console/MapContainer";
-import CountryPanel from "@/components/console/CountryPanel";
-import {
-  TotalSessions,
-  TopCountries,
-  CountryCount,
-  StatsGrid,
-} from "@/components/console/StatsDisplay";
+import { TotalSessions, CountryCount } from "@/components/console/StatsDisplay";
 
 const ALL = "?period=all";
 
-interface ConsoleData {
+interface LandingData {
   health: HealthResponse;
   kpis: KpisResponse;
   geo: GeoItem[];
-  devices: DeviceBreakdownItem[];
-  channels: ChannelBreakdownItem[];
-  referrers: ReferrerBreakdownItem[];
-  pages: PageBreakdownItem[];
 }
 
-export default function ConsolePage() {
-  const [data, setData] = useState<ConsoleData | null>(null);
+export default function LandingPage() {
+  const [data, setData] = useState<LandingData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Country selected by hovering/tapping the "Top countries" list: drives the
-  // side mini-dashboard panel and the map glow.
-  const [selected, setSelected] = useState<{
-    country: string;
-    count: number;
-  } | null>(null);
+  const reduce = useReducedMotion();
 
   useEffect(() => {
     let cancelled = false;
@@ -56,14 +38,9 @@ export default function ConsolePage() {
       fetchJson<HealthResponse>("/api/health"),
       fetchJson<KpisResponse>(`/api/kpis${ALL}`),
       fetchJson<GeoItem[]>(`/api/geo${ALL}`),
-      fetchJson<DeviceBreakdownItem[]>(`/api/breakdown/devices${ALL}`),
-      fetchJson<ChannelBreakdownItem[]>(`/api/breakdown/channels${ALL}`),
-      fetchJson<ReferrerBreakdownItem[]>(`/api/breakdown/referrers${ALL}`),
-      fetchJson<PageBreakdownItem[]>(`/api/pages${ALL}`),
     ])
-      .then(([health, kpis, geo, devices, channels, referrers, pages]) => {
-        if (!cancelled)
-          setData({ health, kpis, geo, devices, channels, referrers, pages });
+      .then(([health, kpis, geo]) => {
+        if (!cancelled) setData({ health, kpis, geo });
       })
       .catch((e: unknown) => {
         if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load");
@@ -75,114 +52,142 @@ export default function ConsolePage() {
 
   if (error) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-black p-6 font-mono text-sm text-[var(--ds-red-600)]">
-        {error}
+      <main className="flex min-h-screen flex-col items-center justify-center gap-3 bg-black p-6 font-mono text-sm">
+        <p className="text-[var(--ds-red-600)]">{error}</p>
+        <Link
+          href="/dashboard"
+          className="text-[var(--ds-gray-500)] underline-offset-4 hover:text-[var(--ds-gray-1000)] hover:underline"
+        >
+          Continue to the console →
+        </Link>
       </main>
     );
   }
 
-  if (!data) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-black font-mono text-sm uppercase tracking-widest text-[var(--ds-gray-500)]">
-        Loading console…
-      </main>
-    );
-  }
+  // Staggered entrance for the hero copy. Reduced-motion snaps everything in.
+  const rise = (delay: number) =>
+    reduce
+      ? {}
+      : {
+          initial: { opacity: 0, y: 12 },
+          animate: { opacity: 1, y: 0 },
+          transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] as const, delay },
+        };
 
-  const { health, kpis, geo, devices, channels, referrers, pages } = data;
-  const range = `${fmtMonthYear(health.range.min)} – ${fmtMonthYear(health.range.max)}`;
-  const countryCount = geo.length;
+  const range = data
+    ? `${fmtMonthYear(data.health.range.min)} – ${fmtMonthYear(data.health.range.max)}`
+    : null;
 
   return (
-    <main className="relative mx-auto flex min-h-screen max-w-[min(100vw,1600px)] flex-col overflow-hidden px-6 pt-12 font-mono md:block md:pt-16">
-      <div className="mx-auto mb-12 mt-1 w-full max-w-[1600px] space-y-1.5">
-        {/* Mobile / narrow layout */}
-        <div className="flex flex-col min-[961px]:hidden">
-          <header className="mb-6 flex flex-col items-start gap-2 font-mono text-sm uppercase">
-            <p className="text-gray-1000 my-0 whitespace-nowrap font-mono">
-              Web Traffic Analytics{" "}
-              <span className="text-gray-900 block font-mono">[{range}]</span>
-            </p>
-          </header>
-
-          <section className="w-full pb-6">
-            <div className="flex flex-col gap-y-6">
-              <TotalSessions value={kpis.sessions.current} />
-              <TopCountries
-                geo={geo}
-                selected={selected?.country ?? null}
-                onSelect={setSelected}
-              />
-            </div>
-            <CountryCount count={countryCount} />
-            <AnimatePresence>
-              {selected && (
-                <div className="mt-6">
-                  <CountryPanel
-                    key={selected.country}
-                    country={selected.country}
-                    count={selected.count}
-                  />
-                </div>
-              )}
-            </AnimatePresence>
-          </section>
-
-          <div className="flex w-full justify-center">
-            <MapContainer geo={geo} selectedCountry={selected?.country ?? null} />
-          </div>
+    <main className="relative min-h-screen overflow-hidden bg-black font-mono">
+      {/* Backdrop layer: the live dotted world map (ssr:false via MapContainer). */}
+      {data && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <motion.div
+            className="w-full"
+            initial={reduce ? false : { opacity: 0, scale: 1.04 }}
+            animate={{ opacity: 0.55, scale: 1 }}
+            transition={{ duration: 1.4, ease: "easeOut" }}
+          >
+            <MapContainer geo={data.geo} selectedCountry={null} />
+          </motion.div>
         </div>
+      )}
 
-        {/* Wide layout: stats column overlaid on the full-width map */}
-        <div className="relative hidden flex-row min-[961px]:flex lg:items-center lg:justify-between">
-          <header className="mb-auto flex flex-col items-start gap-2 font-mono text-sm uppercase xl:text-base">
-            <p className="text-gray-1000 my-0 whitespace-nowrap font-mono">
-              Web Traffic Analytics{" "}
-              <span className="text-gray-900 block font-mono">[{range}]</span>
+      {/* Scrim: keep the copy legible over the map without hiding it. A bottom
+          vignette anchors the hero; a left gradient grounds the headline. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-[1]"
+        style={{
+          background:
+            "linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.55) 38%, rgba(0,0,0,0.15) 70%, rgba(0,0,0,0.55) 100%)",
+        }}
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-[1]"
+        style={{
+          background:
+            "linear-gradient(to right, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.25) 45%, rgba(0,0,0,0) 70%)",
+        }}
+      />
+
+      {/* Top bar: product-name treatment, dashboard mono idiom. */}
+      <div className="relative z-10 mx-auto flex w-full max-w-[1600px] items-center justify-between px-6 pt-10">
+        <motion.p
+          {...rise(0)}
+          className="text-gray-1000 my-0 font-mono text-sm uppercase tracking-tight"
+        >
+          Web Traffic Analytics
+        </motion.p>
+        {range && (
+          <motion.p
+            {...rise(0.05)}
+            className="text-gray-900 my-0 hidden font-mono text-xs uppercase tracking-tight sm:block"
+          >
+            [{range}]
+          </motion.p>
+        )}
+      </div>
+
+      {/* Hero content, bottom-anchored for a cinematic, console-style frame. */}
+      <div className="relative z-10 mx-auto flex min-h-[calc(100vh-5.5rem)] max-w-[1600px] flex-col justify-end px-6 pb-16">
+        <motion.p
+          {...rise(0.1)}
+          className="text-gray-900 mb-5 font-mono text-xs uppercase tracking-[0.2em]"
+        >
+          Live ops console
+        </motion.p>
+
+        <motion.h1
+          {...rise(0.18)}
+          className="text-gray-1000 my-0 max-w-3xl font-mono text-4xl font-medium leading-[1.05] tracking-tight md:text-6xl"
+        >
+          Web traffic, in real time.
+        </motion.h1>
+
+        <motion.p
+          {...rise(0.26)}
+          className="text-gray-900 mt-6 max-w-2xl font-mono text-sm leading-relaxed md:text-base"
+        >
+          A live ops console over ~79,000 real sessions across 16 countries —
+          sessions, channels, devices and geo, straight from the live API.
+        </motion.p>
+
+        {/* Live scramble-in headline stats (real data only). */}
+        <motion.div {...rise(0.34)} className="mt-12 min-h-[6rem]">
+          {data ? (
+            <div className="flex flex-wrap items-end gap-x-12 gap-y-6">
+              <TotalSessions value={data.kpis.sessions.current} />
+              <CountryCount count={data.geo.length} />
+            </div>
+          ) : (
+            <p className="text-gray-500 font-mono text-sm uppercase tracking-[0.2em]">
+              <span className="inline-flex items-center gap-2">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--ds-blue-500)]" />
+                Loading live data…
+              </span>
             </p>
-          </header>
+          )}
+        </motion.div>
 
-          <section className="relative z-10 w-fit pb-6 lg:absolute lg:bottom-0">
-            <div className="flex items-end gap-8">
-              <div>
-                <div className="flex flex-col gap-y-8">
-                  <TotalSessions value={kpis.sessions.current} />
-                  <TopCountries
-                    geo={geo}
-                    selected={selected?.country ?? null}
-                    onSelect={setSelected}
-                  />
-                </div>
-                <CountryCount count={countryCount} />
-              </div>
-              <AnimatePresence>
-                {selected && (
-                  <CountryPanel
-                    key={selected.country}
-                    country={selected.country}
-                    count={selected.count}
-                  />
-                )}
-              </AnimatePresence>
-            </div>
-          </section>
-
-          <div className="pointer-events-none h-full w-full">
-            <div className="pointer-events-auto">
-              <MapContainer geo={geo} selectedCountry={selected?.country ?? null} />
-            </div>
-          </div>
-        </div>
-
-        <section className="mt-8">
-          <StatsGrid
-            kpis={kpis}
-            devices={devices}
-            channels={channels}
-            referrers={referrers}
-            pages={pages}
-          />
-        </section>
+        {/* CTAs → the console. */}
+        <motion.div {...rise(0.42)} className="mt-12 flex flex-wrap items-center gap-5">
+          <Link
+            href="/dashboard"
+            className="text-gray-1000 group inline-flex items-center gap-2 border border-[var(--ds-gray-400)] bg-[var(--ds-background-200)] px-5 py-2.5 font-mono text-sm uppercase tracking-tight transition-colors hover:border-[var(--ds-blue-700)] hover:text-[var(--ds-blue-500)]"
+          >
+            Enter the console
+            <span className="transition-transform group-hover:translate-x-0.5">→</span>
+          </Link>
+          {data && (
+            <span className="text-gray-700 font-mono text-xs uppercase tracking-tight">
+              <span className="mr-2 inline-block h-1.5 w-1.5 align-middle animate-pulse rounded-full bg-[var(--ds-green-600)]" />
+              Live · {data.geo.length} countries
+            </span>
+          )}
+        </motion.div>
       </div>
     </main>
   );
