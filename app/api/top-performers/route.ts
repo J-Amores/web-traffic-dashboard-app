@@ -11,8 +11,8 @@ import type { DimensionKey, MetricKey } from "@/lib/types";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const DEFAULT_METRIC: MetricKey = "totalPosts";
-const DEFAULT_DIMENSION: DimensionKey = "platform";
+const DEFAULT_METRIC: MetricKey = "sessions";
+const DEFAULT_DIMENSION: DimensionKey = "sourceMedium";
 
 export function GET(req: NextRequest) {
   return jsonHandler(() => {

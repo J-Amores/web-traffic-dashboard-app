@@ -8,20 +8,24 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "migrate": "node --env-file=.env.local scripts/migrate-to-neon.mjs",
+    "seed": "node --env-file=.env.local scripts/generate-seed.mjs",
     "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
+    "framer-motion": "^12.40.0",
+    "lucide-react": "^1.17.0",
     "next": "14.2.35",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "react-simple-maps": "^3.0.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",
     "@types/node": "^20.14.0",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
+    "@types/react-simple-maps": "^3.0.6",
     "autoprefixer": "^10.4.19",
     "better-sqlite3": "^11.8.1",
     "eslint": "^8.57.0",

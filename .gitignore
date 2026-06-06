@@ -15,6 +15,7 @@ npm-debug.log*
 
 # Testing
 /coverage
+/.screenshots
 
 # Production
 /build
@@ -42,8 +43,13 @@ ui-old/
 .claude/
 CLAUDE.md
 agent-learnings.md
+developer-log.md
 
 #Superpowers
 .superpowers/
 docs/
 skills-lock.json
+
+#Vercel
+.vercel
+.env*.local

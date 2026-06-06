@@ -1,23 +1,24 @@
 // Shared response shapes for the dashboard API.
 //
-// Metric mapping (mockup web-analytics intent -> real social-engagement data):
-//   Total Sessions        -> totalPosts        = COUNT(*)
-//   Session Duration       -> avgEngagementRate = AVG(engagement_rate)
-//   Avg Unique Pageviews   -> avgImpressions    = AVG(impressions)
-//   Avg Time on Page       -> avgEngagements    = AVG(likes+shares+comments)
+// Web-analytics model (table `web_sessions`, one row = one session):
+//   Total Sessions       -> sessions          = COUNT(*)
+//   Session Duration     -> sessionDuration    = AVG(session_duration_s)
+//   Avg Unique Pageviews -> uniquePageviews    = AVG(unique_pageviews)
+//   Avg Time on Page     -> timeOnPage         = AVG(time_on_page_s)
 
 export type MetricKey =
-  | "totalPosts"
-  | "avgEngagementRate"
-  | "avgImpressions"
-  | "avgEngagements";
+  | "sessions"
+  | "sessionDuration"
+  | "uniquePageviews"
+  | "timeOnPage";
 
 export type DimensionKey =
-  | "platform"
-  | "brand"
-  | "product"
+  | "device"
   | "channel"
-  | "location";
+  | "source"
+  | "country"
+  | "page"
+  | "sourceMedium";
 
 export interface SparklinePoint {
   month: string; // 'YYYY-MM'
@@ -32,44 +33,50 @@ export interface KpiBlock {
 }
 
 export interface KpisResponse {
-  totalPosts: KpiBlock;
-  avgEngagementRate: KpiBlock;
-  avgImpressions: KpiBlock;
-  avgEngagements: KpiBlock;
+  sessions: KpiBlock;
+  sessionDuration: KpiBlock;
+  uniquePageviews: KpiBlock;
+  timeOnPage: KpiBlock;
 }
 
-export interface PlatformBreakdownItem {
-  platform: string;
-  count: number;
+/** "Which devices bring the most sessions?" */
+export interface DeviceBreakdownItem {
+  device: string;
+  count: number; // sessions
   sharePct: number;
+  avgUniquePageviews: number;
   deltaPct: number;
 }
 
-export interface BrandBreakdownItem {
-  brand: string;
-  count: number;
-  impressions: number;
+/** "Which referral sites bring the most traffic?" */
+export interface ReferrerBreakdownItem {
+  source: string;
+  medium: string;
+  count: number; // sessions
 }
 
+/** "Where does the traffic come from?" — geo bubbles. */
 export interface GeoItem {
-  location: string;
+  country: string;
   lat: number;
   lng: number;
   count: number;
 }
 
+/** "Which channels bring the most sessions?" */
 export interface ChannelBreakdownItem {
-  channel: string; // campaign_phase
-  count: number;
-  avgImpressions: number;
+  channel: string;
+  count: number; // sessions
+  avgUniquePageviews: number;
   sparkline: SparklinePoint[];
 }
 
-export interface ProductBreakdownItem {
-  product: string;
-  count: number;
-  avgEngagements: number;
-  sharePct: number;
+/** "What are the most visited pages?" */
+export interface PageBreakdownItem {
+  pageTitle: string;
+  count: number; // sessions
+  avgTimeOnPage: number;
+  bounceRate: number; // 0..1
 }
 
 export interface TopPerformerItem {
@@ -87,11 +94,10 @@ export interface TopPerformersResponse {
 }
 
 export interface FilterOptionsResponse {
-  platforms: string[];
+  devices: string[];
+  channels: string[];
   countries: string[];
-  brands: string[];
-  campaigns: string[];
-  sentiments: string[];
+  sources: string[];
   dateBounds: { min: string; max: string };
 }
 

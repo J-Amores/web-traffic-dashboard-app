@@ -8,14 +8,20 @@
 // day so the whole day is inclusive. `"timestamp"` is quoted because it is a
 // Postgres reserved keyword.
 
+// Period presets the header selector can request without computing dates
+// client-side. `month` is the default when no period/from/to is supplied.
+// Explicit `from`/`to` always override `period`.
+export const PERIOD_PRESETS = ["month", "3m", "6m", "12m", "all"] as const;
+export type PeriodPreset = (typeof PERIOD_PRESETS)[number];
+
 export interface FilterParams {
   from?: string;
   to?: string;
-  platform?: string;
-  location?: string;
-  brand?: string;
-  campaign?: string;
-  sentiment?: string;
+  period?: PeriodPreset;
+  device?: string;
+  country?: string;
+  channel?: string;
+  source?: string;
 }
 
 export interface WhereResult {
@@ -23,19 +29,26 @@ export interface WhereResult {
   params: (string | number)[];
 }
 
-const ALLOWED_KEYS: (keyof FilterParams)[] = [
+// String-valued keys parsed generically. `period` is parsed separately because
+// it is a whitelisted enum, not a free-form string.
+const ALLOWED_KEYS: Exclude<keyof FilterParams, "period">[] = [
   "from",
   "to",
-  "platform",
-  "location",
-  "brand",
-  "campaign",
-  "sentiment",
+  "device",
+  "country",
+  "channel",
+  "source",
 ];
+
+function isPeriodPreset(v: string): v is PeriodPreset {
+  return (PERIOD_PRESETS as readonly string[]).includes(v);
+}
 
 /**
  * Extract only the known filter params from a URLSearchParams, ignoring any
- * unknown keys. Empty strings are treated as absent.
+ * unknown keys. Empty strings are treated as absent. `period` is validated
+ * against the preset whitelist; unknown values are dropped (period.ts then
+ * applies the `month` default).
  */
 export function parseFilters(search: URLSearchParams): FilterParams {
   const out: FilterParams = {};
@@ -44,6 +57,10 @@ export function parseFilters(search: URLSearchParams): FilterParams {
     if (raw !== null && raw.trim() !== "") {
       out[key] = raw.trim();
     }
+  }
+  const period = search.get("period");
+  if (period !== null && isPeriodPreset(period.trim())) {
+    out.period = period.trim() as PeriodPreset;
   }
   return out;
 }
@@ -76,13 +93,10 @@ export function buildWhere(
 
   if (filters.from) clauses.push(`"timestamp" >= ${ph(filters.from)}`);
   if (filters.to) clauses.push(`"timestamp" <= ${ph(normalizeTo(filters.to))}`);
-  if (filters.platform) clauses.push(`platform = ${ph(filters.platform)}`);
-  if (filters.location) clauses.push(`location = ${ph(filters.location)}`);
-  if (filters.brand) clauses.push(`brand_name = ${ph(filters.brand)}`);
-  if (filters.campaign) clauses.push(`campaign_name = ${ph(filters.campaign)}`);
-  if (filters.sentiment) {
-    clauses.push(`sentiment_label = ${ph(filters.sentiment)}`);
-  }
+  if (filters.device) clauses.push(`device_category = ${ph(filters.device)}`);
+  if (filters.country) clauses.push(`country = ${ph(filters.country)}`);
+  if (filters.channel) clauses.push(`channel = ${ph(filters.channel)}`);
+  if (filters.source) clauses.push(`source = ${ph(filters.source)}`);
 
   const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
   return { where, params };
